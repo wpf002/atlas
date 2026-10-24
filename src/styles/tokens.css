@@ -1,0 +1,42 @@
+/*
+ * The Atlas palette: engraved-map ink, vellum paper, brass instruments,
+ * verdigris on old copper. Nothing in the UI uses a colour not defined here.
+ */
+:root {
+  --ink-950: #070c12;
+  --ink-900: #0b1219;
+  --ink-850: #0f1821;
+  --ink-800: #131f2a;
+  --ink-700: #1a2835;
+  --ink-600: #243442;
+  --line: #22323f;
+  --line-soft: #1a2733;
+
+  --vellum: #ece3d1;
+  --vellum-dim: #9fa9b2;
+  --vellum-faint: #6f7c88;
+
+  --brass: #c89a57;
+  --brass-bright: #e3bd7f;
+  --brass-dim: #8a6d3d;
+  --verdigris: #5f9e8f;
+  --terracotta: #c4714d;
+
+  --display: 'Spectral', 'Iowan Old Style', Georgia, serif;
+  --ui: 'Archivo', system-ui, -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  --r-sm: 6px;
+  --r-md: 9px;
+  --r-lg: 14px;
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 22px;
+  --s-6: 30px;
+
+  --rail-left: 292px;
+  --rail-right: 330px;
+}

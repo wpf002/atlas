@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>The Atlas — Living World</title>
+    <meta
+      name="description"
+      content="A living 3D campus of 40 specialist residents across 15 districts, each with a workplace, a costume and a daily routine."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">✧</span>
+          <span class="brand-text">
+            <span class="eyebrow">The Canonical Universe</span>
+            <h1>The Atlas <em>Living World</em></h1>
+          </span>
+        </div>
+        <div class="topbar-meta">
+          <span class="meta-pair"><b id="meta-awake">40</b> On Campus</span>
+          <span class="meta-pair"><b id="meta-districts">15</b> Districts</span>
+          <span class="status-live"><i aria-hidden="true"></i> World Active</span>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <p class="label">Districts</p>
+        <input
+          id="search"
+          class="search"
+          type="search"
+          placeholder="Search Residents or Expertise"
+          aria-label="Search residents or expertise"
+          autocomplete="off"
+        />
+        <div id="districts" class="district-list"></div>
+        <div class="rule"></div>
+        <p class="label">Residents <span id="resident-count" class="label-count">40</span></p>
+        <div id="residents" class="resident-list"></div>
+      </aside>
+
+      <main class="viewport">
+        <canvas id="scene" aria-label="Three-dimensional campus with forty animated residents"></canvas>
+
+        <div class="scene-head">
+          <h2 id="scene-title">The Grand Commons</h2>
+          <p id="scene-subtitle">Forty specialists, fifteen districts, one working day</p>
+        </div>
+
+        <div class="scene-clock">
+          <strong id="clock">10:00</strong>
+          <span id="phase">Golden Hour</span>
+        </div>
+
+        <div class="scene-foot">
+          <p class="hint">Drag To Orbit · Scroll To Zoom · Click A Resident</p>
+          <div class="camera">
+            <button id="zoom-out" class="icon-button" type="button" aria-label="Zoom out">−</button>
+            <button id="zoom-in" class="icon-button" type="button" aria-label="Zoom in">+</button>
+            <button id="camera-home" class="icon-button" type="button" aria-label="Reset camera">⌂</button>
+          </div>
+        </div>
+
+        <div id="loading" class="loading">
+          <div>
+            <span class="loading-mark" aria-hidden="true">✧</span>
+            <strong>Constructing The Atlas</strong>
+            <p>Fifteen districts, forty residents, one daily rhythm.</p>
+          </div>
+        </div>
+      </main>
+
+      <aside class="inspector">
+        <p class="label">Dossier</p>
+        <div class="portrait">
+          <span id="portrait-monogram" class="portrait-monogram">A</span>
+          <span id="portrait-glyph" class="portrait-glyph" aria-hidden="true">✧</span>
+          <span id="portrait-tag" class="portrait-tag">No Resident Selected</span>
+        </div>
+
+        <div class="dossier">
+          <h3 id="dossier-name">Meet The Residents</h3>
+          <p id="dossier-title" class="dossier-title">Forty distinct minds, one interconnected campus</p>
+          <p id="dossier-district" class="dossier-district">Select Any Resident</p>
+          <ul id="dossier-tags" class="tag-row"></ul>
+          <p id="dossier-bio" class="dossier-bio">
+            Every resident has a district, a costume, a workstation and a routine. Follow one to watch
+            the day play out.
+          </p>
+          <dl class="readout">
+            <div><dt>Now</dt><dd id="dossier-now">—</dd></div>
+            <div><dt>Rhythm</dt><dd id="dossier-rhythm">—</dd></div>
+          </dl>
+          <button id="follow" class="button-primary" type="button" disabled>Follow Resident</button>
+          <button id="visit" class="button-ghost" type="button" disabled>Visit District</button>
+        </div>
+
+        <div class="rule"></div>
+        <p class="label">World Activity <span class="label-live">Live</span></p>
+        <div id="activity" class="activity" aria-live="polite"></div>
+      </aside>
+
+      <footer class="footer">
+        <div class="chips">
+          <button id="toggle-run" class="chip is-on" type="button">Pause World</button>
+          <button id="toggle-tour" class="chip" type="button">Guided Tour</button>
+          <button id="toggle-labels" class="chip is-on" type="button">Labels</button>
+          <button id="toggle-speed" class="chip" type="button">Speed 1×</button>
+        </div>
+        <p class="readout-line">
+          <span id="stat-state">Working</span>
+          <span class="dot" aria-hidden="true">·</span>
+          <span id="stat-fps">Ready</span>
+        </p>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
