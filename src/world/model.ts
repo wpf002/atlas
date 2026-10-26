@@ -1,47 +1,91 @@
 /**
- * The one mesh every resident is built from.
+ * Resident models from Quaternius's Ultimate Animated Character Pack.
  *
- * All forty residents share a single blocky rig loaded once at boot: six boxes
- * on a seven-node hierarchy with twenty-seven baked clips. The rig has no skin
- * weights, so a plain clone is a complete, independently animatable copy — no
- * skeleton rebinding and no per-resident geometry.
+ * Fifteen outfits, five women and ten men, all bound to the same 62-joint
+ * `CharacterArmature`. The files were trimmed to the clips the campus uses
+ * (see public/models/characters/License.txt). The meshes are skinned, so a
+ * copy needs SkeletonUtils.clone to get its own bones.
  */
-import { AnimationClip, Group, Mesh, MeshStandardMaterial, type Object3D } from 'three';
+import { AnimationClip, Box3, Color, Mesh, MeshStandardMaterial, Vector3, type Object3D } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
-/** The pack ships the rig 2.7 units tall; the campus expects a 3-unit person. */
-const FIT = 3 / 2.7;
+export const OUTFITS = [
+  'suit-m', 'suit-f', 'worker-m', 'worker2-m', 'swat-m',
+  'adventurer-m', 'adventurer-f', 'farmer-m', 'hoodie-m', 'casual-m',
+  'casual-f', 'formal-f', 'punk-f', 'punk-m', 'beach-m',
+] as const;
+export type Outfit = (typeof OUTFITS)[number];
 
-let source: Object3D | null = null;
-let library: AnimationClip[] = [];
+interface Source {
+  scene: Object3D;
+  clips: AnimationClip[];
+  /** Bind-pose height in the file's own units. */
+  height: number;
+}
+
+const sources = new Map<Outfit, Source>();
 
 export async function loadResidentModel(): Promise<void> {
-  const gltf = await new GLTFLoader().loadAsync('models/characters/resident.glb');
-  source = gltf.scene;
-  library = gltf.animations;
-  // The pack marks its material unlit, which ignores the sun and the sky grade
-  // entirely. Residents have to take the same light as the buildings do.
-  source.traverse((object) => {
-    if (object instanceof Mesh) object.material = new MeshStandardMaterial({ roughness: 0.82 });
-  });
+  const loader = new GLTFLoader();
+  await Promise.all(
+    OUTFITS.map(async (outfit) => {
+      const gltf = await loader.loadAsync(`models/characters/${outfit}.glb`);
+      const scene = gltf.scene;
+      scene.traverse((object) => {
+        if (!(object instanceof Mesh)) return;
+        const old = object.material as MeshStandardMaterial;
+        object.material = new MeshStandardMaterial({
+          name: old.name,
+          color: old.color,
+          roughness: 0.78,
+          metalness: 0,
+        });
+        object.castShadow = true;
+        object.receiveShadow = true;
+        object.frustumCulled = false;
+      });
+      scene.updateMatrixWorld(true);
+      const height = new Box3().setFromObject(scene).getSize(new Vector3()).y;
+      sources.set(outfit, { scene, clips: gltf.animations, height });
+    }),
+  );
 }
 
-export function clipNamed(name: string): AnimationClip {
-  const found = library.find((clip) => clip.name === name);
-  if (!found) throw new Error(`resident.glb has no clip named ${name}`);
-  return found;
+export interface ResidentModel {
+  body: Object3D;
+  clips: AnimationClip[];
+  height: number;
 }
+
+/** Material names the pack uses for skin and for hair. */
+const SKIN = new Set(['Skin']);
+const HAIR = new Set(['Hair', 'Hair_Brown', 'Hair_Blond']);
 
 /**
- * A fresh copy of the rig, already scaled to campus units and turned to face
- * -Z, which is the heading the steering code works in.
+ * A fresh, independently animated copy of an outfit with its own skin and hair
+ * colour. Clothing materials stay shared across copies.
  */
-export function cloneResident(): { root: Group; body: Object3D } {
+export function cloneResident(outfit: Outfit, skin: string, hair: string): ResidentModel {
+  const source = sources.get(outfit);
   if (!source) throw new Error('loadResidentModel() has to finish before residents are built');
-  const body = source.clone(true);
-  body.scale.setScalar(FIT);
-  body.rotation.y = Math.PI;
-  const root = new Group();
-  root.add(body);
-  return { root, body };
+  const body = cloneSkinned(source.scene);
+  const skinMat = new Map<MeshStandardMaterial, MeshStandardMaterial>();
+  body.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    const list = Array.isArray(object.material) ? object.material : [object.material];
+    const swapped = list.map((mat: MeshStandardMaterial) => {
+      const tint = SKIN.has(mat.name) ? skin : HAIR.has(mat.name) ? hair : null;
+      if (!tint) return mat;
+      let copy = skinMat.get(mat);
+      if (!copy) {
+        copy = mat.clone();
+        copy.color = new Color(tint);
+        skinMat.set(mat, copy);
+      }
+      return copy;
+    });
+    object.material = Array.isArray(object.material) ? swapped : swapped[0];
+  });
+  return { body, clips: source.clips, height: source.height };
 }

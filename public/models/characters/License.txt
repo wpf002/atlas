@@ -1,28 +1,24 @@
-	
+Ultimate Animated Character Pack
+Created by Quaternius (quaternius.com), distributed via poly.pizza.
 
-	Blocky Characters (2.0)
+Files and sources:
+  suit-m.glb        Business Man        https://poly.pizza/m/JFrLIKqvCH  CC0 1.0
+  suit-f.glb        Suit                https://poly.pizza/m/sOUciDsoVV  CC-BY 3.0
+  worker-m.glb      Worker              https://poly.pizza/m/Yg2bQZO6Hj  CC0 1.0
+  worker2-m.glb     Worker              https://poly.pizza/m/E8079Ahx7k  CC-BY 3.0
+  swat-m.glb        SWAT                https://poly.pizza/m/Btfn3G5Xv4  CC0 1.0
+  adventurer-m.glb  Adventurer          https://poly.pizza/m/5EGWBMpuXq  CC0 1.0
+  adventurer-f.glb  Adventurer          https://poly.pizza/m/ZwF0K7WBmu  CC0 1.0
+  farmer-m.glb      Farmer              https://poly.pizza/m/7pn3R6hPvE  CC0 1.0
+  hoodie-m.glb      Hoodie Character    https://poly.pizza/m/gKLBoRsyKe  CC0 1.0
+  casual-m.glb      Casual Character    https://poly.pizza/m/kZ3DmIoGip  CC0 1.0
+  casual-f.glb      Animated Woman      https://poly.pizza/m/qJ2gsTUBHL  CC0 1.0
+  formal-f.glb      Animated Woman      https://poly.pizza/m/nIItLV9nxS  CC0 1.0
+  punk-f.glb        Punk                https://poly.pizza/m/djXoqejw6w  CC0 1.0
+  punk-m.glb        Punk                https://poly.pizza/m/BTALZymknF  CC0 1.0
+  beach-m.glb       Beach Character     https://poly.pizza/m/DojKLcO34E  CC0 1.0
 
-	Created/distributed by Kenney (www.kenney.nl)
-	Creation date: 10-06-2025 11:19
-	
-			------------------------------
+CC-BY 3.0 files require attribution: "Character models by Quaternius".
+https://creativecommons.org/licenses/by/3.0/
 
-	License: (Creative Commons Zero, CC0)
-	http://creativecommons.org/publicdomain/zero/1.0/
-
-	You can use this content for personal, educational, and commercial purposes.
-
-	Support by crediting 'Kenney' or 'www.kenney.nl' (this is not a requirement)
-
-			------------------------------
-
-	• Website : www.kenney.nl
-	• Donate  : www.kenney.nl/donate
-
-	• Patreon : patreon.com/kenney
-	
-	Follow on social media for updates:
-
-	• Twitter:	 twitter.com/KenneyNL
-	• BlueSky:	 kenney.bsky.social
-	• Instagram: instagram.com/kenney_nl
+Files were trimmed to the Idle, Idle_Neutral, Walk, Interact and Wave clips.
