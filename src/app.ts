@@ -11,7 +11,7 @@ import {
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DISTRICT_COUNT, RESIDENTS, RESIDENT_COUNT, type ResidentRecord } from './data/districts';
 import { ActivityFeed } from './sim/activity';
-import { World, type Agent } from './sim/agents';
+import { World, statusOf, type Agent } from './sim/agents';
 import { Clock } from './sim/clock';
 import { buildCampus, type Campus } from './world/campus';
 import { Sky } from './world/lighting';
@@ -22,6 +22,8 @@ import { Sidebar, type DistrictFilter } from './ui/sidebar';
 
 const HOME_VIEW = { position: new Vector3(0, 158, 228), target: new Vector3(0, 0, 0) };
 const TOUR_INTERVAL = 11;
+/** Name tags only show once the camera is close enough to read them. */
+const TAG_RANGE = 62;
 
 export class Atlas {
   private readonly canvas = el<HTMLCanvasElement>('scene');
@@ -49,6 +51,8 @@ export class Atlas {
   private tourTimer = 0;
   private touring = false;
   private speed = 1;
+  private labels = true;
+  private statusTimer = 0;
 
   private last = performance.now();
   private elapsed = 0;
@@ -100,7 +104,8 @@ export class Atlas {
         if (touring) this.following = null;
       },
       onLabelsToggle: (visible) => {
-        for (const agent of this.world.agents) agent.rig.tag.visible = visible;
+        this.labels = visible;
+        if (!visible) for (const agent of this.world.agents) agent.rig.tag.visible = false;
       },
       onSpeedChange: (multiplier) => {
         this.speed = multiplier;
@@ -123,6 +128,8 @@ export class Atlas {
 
     el('meta-districts').textContent = String(DISTRICT_COUNT);
     this.applyHash();
+    // Dev-only handle for poking at the running sim from the console.
+    if (import.meta.env.DEV) Reflect.set(window, 'atlas', this);
     el('loading').hidden = true;
     requestAnimationFrame(() => this.frame(performance.now()));
   }
@@ -134,7 +141,7 @@ export class Atlas {
     if (!agent) return;
     this.selected = agent;
     this.inspector.show(resident);
-    this.inspector.setNow(agent.note);
+    this.inspector.setNow(statusOf(agent));
     this.inspector.setFollowing(this.following === agent);
     this.sidebar.setActiveResident(resident.id);
     this.controls.setHeading(resident.name, resident.title);
@@ -151,7 +158,7 @@ export class Atlas {
     if (this.following) {
       this.touring = false;
       this.controls.setTouring(false);
-      this.controls.setHeading(`Following ${this.following.resident.name}`, this.following.note);
+      this.controls.setHeading(`Following ${this.following.resident.name}`, statusOf(this.following));
     }
   }
 
@@ -241,6 +248,26 @@ export class Atlas {
     this.camera.updateProjectionMatrix();
   }
 
+  /**
+   * Forty tags at once is unreadable from the overview, so a tag shows only
+   * when the camera is near it, plus always for the resident on screen.
+   */
+  private updateTags() {
+    const camera = this.camera.position;
+    const range = TAG_RANGE * TAG_RANGE;
+    for (const agent of this.world.agents) {
+      if (!this.labels || !agent.rig.root.visible) {
+        agent.rig.tag.visible = false;
+        continue;
+      }
+      const p = agent.rig.root.position;
+      const dx = p.x - camera.x;
+      const dy = p.y - camera.y;
+      const dz = p.z - camera.z;
+      agent.rig.tag.visible = agent === this.selected || dx * dx + dy * dy + dz * dz < range;
+    }
+  }
+
   private frame(now: number) {
     requestAnimationFrame((next) => this.frame(next));
     const raw = Math.min((now - this.last) / 1000, 0.05);
@@ -250,15 +277,25 @@ export class Atlas {
     if (this.running) {
       const dt = raw * this.speed;
       this.elapsed += dt;
-      const { hourChanged } = this.clock.advance(dt * 60);
+      const { hourChanged } = this.clock.advance(dt);
       this.sky.apply(this.clock.hourFraction);
       this.world.update(dt, this.elapsed);
       if (hourChanged) {
         this.world.syncToSchedule();
         this.controls.setAwake(this.world.awakeCount);
-        if (this.selected) this.inspector.setNow(this.selected.note);
+        if (this.selected) this.inspector.setNow(statusOf(this.selected));
       }
       this.controls.setClock(this.clock.label, this.sky.phase);
+      this.updateTags();
+
+      this.statusTimer -= dt;
+      if (this.statusTimer <= 0) {
+        this.statusTimer = 0.6;
+        if (this.selected) this.inspector.setNow(statusOf(this.selected));
+        if (this.following) {
+          this.controls.setHeading(`Following ${this.following.resident.name}`, statusOf(this.following));
+        }
+      }
 
       if (this.touring) {
         this.tourTimer -= dt;

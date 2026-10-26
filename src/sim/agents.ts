@@ -26,6 +26,10 @@ export interface Agent {
 }
 
 const ARRIVE = 0.6;
+/** Fallback half-width, used only where a rig is not to hand. */
+const BODY = 0.6;
+/** How far ahead an agent looks for something to walk around. */
+const LOOKAHEAD = 4.2;
 const PLAZA_INNER = 9;
 const PLAZA_OUTER = 21;
 
@@ -127,6 +131,8 @@ export class World {
         break;
       }
     }
+    // Never aim at a point inside a bench, tree or the fountain.
+    if (activity !== 'rest') this.clearOf(dest, agent.rig.radius);
     agent.state = 'walking';
   }
 
@@ -158,8 +164,8 @@ export class World {
     best.partner = a;
     a.meetingHold = 7 + Math.random() * 6;
     best.meetingHold = a.meetingHold;
-    a.dest.set(midpoint.x - offset, 0, midpoint.z);
-    best.dest.set(midpoint.x + offset, 0, midpoint.z);
+    this.clearOf(a.dest.set(midpoint.x - offset, 0, midpoint.z), a.rig.radius);
+    this.clearOf(best.dest.set(midpoint.x + offset, 0, midpoint.z), best.rig.radius);
     a.state = 'walking';
     best.state = 'walking';
 
@@ -202,6 +208,81 @@ export class World {
     }
   }
 
+  /** Nudges a point out of any prop it landed inside. */
+  private clearOf(point: Vector3, body = BODY): Vector3 {
+    for (const o of this.campus.obstacles) {
+      const dx = point.x - o.x;
+      const dz = point.z - o.z;
+      const min = o.radius + body;
+      const d = Math.hypot(dx, dz);
+      if (d >= min) continue;
+      if (d < 1e-4) {
+        point.x = o.x + min;
+        continue;
+      }
+      point.x = o.x + (dx / d) * min;
+      point.z = o.z + (dz / d) * min;
+    }
+    return point;
+  }
+
+  /**
+   * Deflects a heading around the nearest prop in front of the agent, then
+   * pushes the body out of anything it is already overlapping. Steering alone
+   * leaves gaps at corners; the push-out is what guarantees no clipping.
+   */
+  private steer(position: Vector3, dirX: number, dirZ: number, body: number): { x: number; z: number } {
+    let bestDot = 0;
+    let bestX = 0;
+    let bestZ = 0;
+    let bestGap = Infinity;
+
+    for (const o of this.campus.obstacles) {
+      const dx = o.x - position.x;
+      const dz = o.z - position.z;
+      const ahead = dx * dirX + dz * dirZ;
+      if (ahead <= 0 || ahead > LOOKAHEAD) continue;
+      const reach = o.radius + body;
+      // Perpendicular distance from the obstacle centre to the path.
+      const side = dx * -dirZ + dz * dirX;
+      if (Math.abs(side) > reach) continue;
+      const gap = ahead - reach;
+      if (gap >= bestGap) continue;
+      bestGap = gap;
+      bestDot = side;
+      bestX = dx;
+      bestZ = dz;
+    }
+
+    if (bestGap === Infinity) return { x: dirX, z: dirZ };
+
+    // Turn away from whichever side the obstacle sits on.
+    const away = bestDot >= 0 ? -1 : 1;
+    const strength = Math.min(1, LOOKAHEAD / Math.max(0.4, Math.hypot(bestX, bestZ)));
+    const x = dirX + -dirZ * away * strength;
+    const z = dirZ + dirX * away * strength;
+    const length = Math.hypot(x, z) || 1;
+    return { x: x / length, z: z / length };
+  }
+
+  private pushOut(position: Vector3, body: number) {
+    for (const o of this.campus.obstacles) {
+      const dx = position.x - o.x;
+      const dz = position.z - o.z;
+      const min = o.radius + body;
+      if (Math.abs(dx) > min || Math.abs(dz) > min) continue;
+      const d = Math.hypot(dx, dz);
+      if (d >= min) continue;
+      if (d < 1e-4) {
+        position.x = o.x + min;
+        continue;
+      }
+      const push = (min - d) / d;
+      position.x += dx * push;
+      position.z += dz * push;
+    }
+  }
+
   update(dt: number, elapsed: number) {
     this.meetingTimer -= dt;
     if (this.meetingTimer <= 0) {
@@ -224,15 +305,19 @@ export class World {
       }
 
       const position = rig.root.position;
+      this.pushOut(position, rig.radius);
       const dx = agent.dest.x - position.x;
       const dz = agent.dest.z - position.z;
       const distance = Math.hypot(dx, dz);
 
       if (distance > ARRIVE) {
         const step = Math.min(distance, dt * agent.speed * 2.1);
-        position.x += (dx / distance) * step;
-        position.z += (dz / distance) * step;
-        rig.root.rotation.y = Math.atan2(-dx, -dz);
+        const heading = this.steer(position, dx / distance, dz / distance, rig.radius);
+        position.x += heading.x * step;
+        position.z += heading.z * step;
+        // Again after the step, so a stride never ends inside a prop.
+        this.pushOut(position, rig.radius);
+        rig.root.rotation.y = Math.atan2(-heading.x, -heading.z);
 
         agent.phase += dt * 9.5;
         const swing = Math.sin(agent.phase);
@@ -282,5 +367,29 @@ export class World {
   /** Count of residents currently out on the campus. */
   get awakeCount(): number {
     return this.agents.reduce((n, a) => n + (a.state === 'indoors' ? 0 : 1), 0);
+  }
+}
+
+/**
+ * What the dossier shows. The rhythm note describes where an agent is headed,
+ * so on its own it reads as a lie while they are still walking there.
+ */
+export function statusOf(agent: Agent): string {
+  if (agent.state === 'indoors') return agent.note;
+  if (agent.state === 'meeting') {
+    return agent.partner ? `Talking with ${agent.partner.resident.name}` : 'In conversation';
+  }
+  if (agent.state !== 'walking') return agent.note;
+  switch (agent.activity) {
+    case 'rest':
+      return 'Walking home';
+    case 'commons':
+      return 'Crossing the commons';
+    case 'social':
+      return 'Off to find someone';
+    case 'wander':
+      return 'Out walking';
+    default:
+      return `Walking to ${agent.placement.district.venue}`;
   }
 }

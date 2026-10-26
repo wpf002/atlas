@@ -16,9 +16,17 @@ export interface Placement {
   frontage: Vector3;
 }
 
+/** A footprint residents walk around rather than through. */
+export interface Obstacle {
+  x: number;
+  z: number;
+  radius: number;
+}
+
 export interface Campus {
   placements: Placement[];
   plaza: Vector3;
+  obstacles: Obstacle[];
 }
 
 const INNER_RADIUS = 56;
@@ -102,6 +110,7 @@ function groundPlan(scene: Object3D) {
 function tree(scene: Object3D, x: number, z: number, s = 1) {
   const g = new Group();
   g.position.set(x, 0, z);
+  g.userData.obstacle = 0.95 * s;
   g.add(cyl(0.17, 0.26, 2.6 * s, SURFACES.wood, 0, 1.3 * s, 0, 8));
   for (let k = 0; k < 3; k++) {
     g.add(
@@ -113,14 +122,19 @@ function tree(scene: Object3D, x: number, z: number, s = 1) {
 }
 
 function lampPost(parent: Group, x: number, z: number) {
-  parent.add(cyl(0.12, 0.16, 5, SURFACES.iron, x, 2.5, z, 8));
-  parent.add(ball(0.42, lamp('#f2d9a4', 1.1), x, 5.2, z, 10));
+  const g = new Group();
+  g.position.set(x, 0, z);
+  g.userData.obstacle = 0.5;
+  g.add(cyl(0.12, 0.16, 5, SURFACES.iron, 0, 2.5, 0, 8));
+  g.add(ball(0.42, lamp('#f2d9a4', 1.1), 0, 5.2, 0, 10));
+  parent.add(g);
 }
 
 function bench(parent: Group, x: number, z: number, rotation = 0) {
   const g = new Group();
   g.position.set(x, 0, z);
   g.rotation.y = rotation;
+  g.userData.obstacle = 1.9;
   g.add(box(3.2, 0.18, 0.9, SURFACES.wood, 0, 0.78, 0));
   g.add(box(3.2, 0.9, 0.16, SURFACES.wood, 0, 1.2, 0.4));
   g.add(box(0.2, 0.78, 0.8, SURFACES.iron, -1.4, 0.39, 0));
@@ -288,11 +302,15 @@ function buildPlaza(scene: Object3D) {
   scene.add(plaza);
 
   plaza.add(cyl(26, 26, 0.3, SURFACES.paving, 0, 0.1, 0, 64));
-  plaza.add(cyl(7, 7, 0.8, SURFACES.stone, 0, 0.35, 0, 32));
-  plaza.add(cyl(6, 6, 0.2, SURFACES.glass, 0, 0.8, 0, 32));
-  plaza.add(cyl(1.1, 1.3, 4.2, SURFACES.brass, 0, 2.5, 0, 16));
-  plaza.add(ball(1.35, SURFACES.glass, 0, 4.9, 0, 14));
-  plaza.add(cyl(2.6, 2.8, 0.4, SURFACES.brass, 0, 1.0, 0, 24));
+
+  const fountain = new Group();
+  fountain.userData.obstacle = 7.6;
+  fountain.add(cyl(7, 7, 0.8, SURFACES.stone, 0, 0.35, 0, 32));
+  fountain.add(cyl(6, 6, 0.2, SURFACES.glass, 0, 0.8, 0, 32));
+  fountain.add(cyl(1.1, 1.3, 4.2, SURFACES.brass, 0, 2.5, 0, 16));
+  fountain.add(ball(1.35, SURFACES.glass, 0, 4.9, 0, 14));
+  fountain.add(cyl(2.6, 2.8, 0.4, SURFACES.brass, 0, 1.0, 0, 24));
+  plaza.add(fountain);
 
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
@@ -339,6 +357,17 @@ export function buildCampus(scene: Scene): Campus {
     buildDistrict(root, placement);
   });
 
+  // Collect prop footprints before baking flattens the group hierarchy.
+  root.updateMatrixWorld(true);
+  const obstacles: Obstacle[] = [];
+  const at = new Vector3();
+  root.traverse((object) => {
+    const radius = object.userData.obstacle as number | undefined;
+    if (!radius) return;
+    object.getWorldPosition(at);
+    obstacles.push({ x: at.x, z: at.z, radius });
+  });
+
   scene.add(bakeStatic(root));
-  return { placements, plaza: new Vector3(0, 0, 0) };
+  return { placements, plaza: new Vector3(0, 0, 0), obstacles };
 }
