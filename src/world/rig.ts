@@ -153,6 +153,26 @@ export function skin(geometry: BufferGeometry): BufferGeometry {
  * in or out by a profile curve and squashed in Z, which is what gives the body
  * a chest, a waist and hips instead of one constant radius.
  */
+/**
+ * UVs carry the geometry's own size, so a cuff and a coat skirt show the same
+ * weave. How fine that weave reads is the surface's business, not the rig's.
+ */
+const CHARACTER_TILES = 1;
+
+export function tileUv(g: BufferGeometry): BufferGeometry {
+  g.computeBoundingBox();
+  const b = g.boundingBox;
+  if (!b) return g;
+  const girth = Math.max(b.max.x - b.min.x, b.max.z - b.min.z) * Math.PI;
+  const run = Math.max(0.05, b.max.y - b.min.y);
+  const uv = g.attributes.uv as BufferAttribute;
+  for (let i = 0; i < uv.count; i++) {
+    uv.setXY(i, uv.getX(i) * girth * CHARACTER_TILES, uv.getY(i) * run * CHARACTER_TILES);
+  }
+  uv.needsUpdate = true;
+  return g;
+}
+
 export function torsoGeometry(
   bottom: number,
   top: number,
@@ -172,7 +192,7 @@ export function torsoGeometry(
     position.setZ(i, position.getZ(i) * r * depth);
   }
   g.computeVertexNormals();
-  return g;
+  return tileUv(g);
 }
 
 /** Tapered, segmented limb running between two bind-pose points. */
@@ -191,6 +211,7 @@ export function limbGeometry(
   // Stand the cylinder up along the bone, then move it onto the joint.
   const direction = b.clone().sub(a).normalize();
   const q = new Quaternion().setFromUnitVectors(new Vector3(0, -1, 0), direction);
+  tileUv(g);
   g.applyQuaternion(q);
   g.translate(a.x, a.y, a.z);
   return g;
@@ -199,6 +220,7 @@ export function limbGeometry(
 export function sphereGeometry(r: number, at: [number, number, number], squashY = 1): BufferGeometry {
   const g = new SphereGeometry(r, 18, 14);
   g.scale(1, squashY, 1);
+  tileUv(g);
   g.translate(...at);
   return g;
 }
@@ -208,6 +230,7 @@ export function boxGeometry(
   at: [number, number, number],
 ): BufferGeometry {
   const g = new BoxGeometry(size[0], size[1], size[2], 2, 2, 2);
+  tileUv(g);
   g.translate(...at);
   return g;
 }

@@ -10,6 +10,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
+import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
@@ -38,13 +39,14 @@ export class RenderPipeline {
   private readonly composer: EffectComposer;
   private readonly gtao: GTAOPass;
   private readonly bloom: UnrealBloomPass;
+  private readonly bokeh: BokehPass;
 
   constructor(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera) {
     // Image-based lighting. Kept dim so the sun stays the key light and this
     // only fills the shadows the way a real sky would.
     const pmrem = new PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    scene.environmentIntensity = 0.34;
+    scene.environmentIntensity = 0.26;
     pmrem.dispose();
 
     const size = renderer.getSize(new Vector2());
@@ -60,6 +62,12 @@ export class RenderPipeline {
     this.gtao.updateGtaoMaterial(AO);
     this.gtao.updatePdMaterial(DENOISE);
     this.composer.addPass(this.gtao);
+
+    // Depth of field. It re-renders the scene for depth, so it stays switched
+    // off at campus range and only earns its cost on a close shot.
+    this.bokeh = new BokehPass(scene, camera, { focus: 16, aperture: 0.0002, maxblur: 0.009 });
+    this.bokeh.enabled = false;
+    this.composer.addPass(this.bokeh);
 
     // Only the emissive lamps clear the threshold, so daylight stays crisp.
     this.bloom = new UnrealBloomPass(new Vector2(size.x, size.y), 0.34, 0.7, 0.86);
@@ -77,6 +85,20 @@ export class RenderPipeline {
   setNight(amount: number) {
     this.bloom.strength = 0.22 + amount * 0.5;
     this.bloom.threshold = 0.86 - amount * 0.22;
+  }
+
+  /**
+   * Focus follows the orbit target. Aperture fades in below 34 units and the
+   * pass switches off above it, so the wide campus view is fully sharp.
+   */
+  setFocus(distance: number) {
+    const close = Math.min(1, Math.max(0, (34 - distance) / 22));
+    this.bokeh.enabled = close > 0.02;
+    if (!this.bokeh.enabled) return;
+    const u = this.bokeh.materialBokeh.uniforms;
+    u.focus.value = distance;
+    u.aperture.value = 0.00004 + close * close * 0.00055;
+    u.maxblur.value = 0.003 + close * 0.008;
   }
 
   setSize(width: number, height: number) {

@@ -3,6 +3,7 @@ import {
   DirectionalLight,
   FogExp2,
   HemisphereLight,
+  Vector3,
   type Scene,
   type WebGLRenderer,
 } from 'three';
@@ -20,14 +21,14 @@ interface SkyStop {
 }
 
 const STOPS: SkyStop[] = [
-  { hour: 0, sky: '#131f2d', sun: '#8098c4', sunIntensity: 0.45, hemiIntensity: 1.35, exposure: 1.22, phase: 'Night · Clear' },
-  { hour: 5, sky: '#1b2838', sun: '#c79a8c', sunIntensity: 1.0, hemiIntensity: 1.6, exposure: 1.3, phase: 'First Light' },
-  { hour: 7, sky: '#3a4f61', sun: '#ffcb95', sunIntensity: 2.9, hemiIntensity: 2.4, exposure: 1.58, phase: 'Golden Hour' },
-  { hour: 12, sky: '#41596c', sun: '#fff1d8', sunIntensity: 3.5, hemiIntensity: 2.8, exposure: 1.62, phase: 'Midday · Clear' },
-  { hour: 17, sky: '#3b4c58', sun: '#ffcf9b', sunIntensity: 3.0, hemiIntensity: 2.4, exposure: 1.56, phase: 'Late Afternoon' },
-  { hour: 19, sky: '#27323d', sun: '#e4915f', sunIntensity: 1.5, hemiIntensity: 1.7, exposure: 1.4, phase: 'Dusk' },
-  { hour: 21, sky: '#16222f', sun: '#8098c4', sunIntensity: 0.5, hemiIntensity: 1.4, exposure: 1.25, phase: 'Night · Clear' },
-  { hour: 24, sky: '#131f2d', sun: '#8098c4', sunIntensity: 0.45, hemiIntensity: 1.35, exposure: 1.22, phase: 'Night · Clear' },
+  { hour: 0, sky: '#0d1620', sun: '#6b82ab', sunIntensity: 0.35, hemiIntensity: 0.5, exposure: 0.92, phase: 'Night · Clear' },
+  { hour: 5, sky: '#172231', sun: '#b0867a', sunIntensity: 0.8, hemiIntensity: 0.62, exposure: 0.96, phase: 'First Light' },
+  { hour: 7, sky: '#2f4252', sun: '#ffc083', sunIntensity: 2.3, hemiIntensity: 0.82, exposure: 1.06, phase: 'Golden Hour' },
+  { hour: 12, sky: '#3a5268', sun: '#ffeed2', sunIntensity: 2.8, hemiIntensity: 0.98, exposure: 1.0, phase: 'Midday · Clear' },
+  { hour: 17, sky: '#334553', sun: '#ffc68d', sunIntensity: 2.4, hemiIntensity: 0.88, exposure: 1.03, phase: 'Late Afternoon' },
+  { hour: 19, sky: '#212c37', sun: '#dc8450', sunIntensity: 1.2, hemiIntensity: 0.66, exposure: 0.97, phase: 'Dusk' },
+  { hour: 21, sky: '#111c28', sun: '#6b82ab', sunIntensity: 0.4, hemiIntensity: 0.52, exposure: 0.93, phase: 'Night · Clear' },
+  { hour: 24, sky: '#0d1620', sun: '#6b82ab', sunIntensity: 0.35, hemiIntensity: 0.5, exposure: 0.92, phase: 'Night · Clear' },
 ];
 
 export class Sky {
@@ -39,6 +40,9 @@ export class Sky {
   private readonly sunColor = new Color();
   private readonly a = new Color();
   private readonly b = new Color();
+  /** Unit vector from the scene toward the sun, rebuilt each hour. */
+  private readonly toSun = new Vector3(0, 1, 0.35).normalize();
+  private extent = 0;
   phase = STOPS[3].phase;
   /** 0 at full noon, 1 in the dead of night. Drives bloom on the lamps. */
   night = 0;
@@ -47,22 +51,20 @@ export class Sky {
     this.scene = scene;
     this.renderer = renderer;
 
-    this.hemi = new HemisphereLight('#cfe1ff', '#2a3a30', 2.4);
+    this.hemi = new HemisphereLight('#bcd4f5', '#3a3326', 0.98);
     scene.add(this.hemi);
 
-    this.sun = new DirectionalLight('#fff0d4', 3.2);
+    this.sun = new DirectionalLight('#fff0d4', 2.8);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
-    this.sun.shadow.camera.left = -150;
-    this.sun.shadow.camera.right = 150;
-    this.sun.shadow.camera.top = 150;
-    this.sun.shadow.camera.bottom = -150;
-    this.sun.shadow.camera.far = 400;
-    this.sun.shadow.normalBias = 0.025;
+    this.sun.shadow.mapSize.set(4096, 4096);
+    this.sun.shadow.camera.near = 1;
+    this.sun.shadow.camera.far = 520;
     scene.add(this.sun);
+    scene.add(this.sun.target);
+    this.focus(new Vector3(), 150);
 
-    scene.background = new Color('#41596c');
-    scene.fog = new FogExp2('#41596c', 0.0028);
+    scene.background = new Color('#3a5268');
+    scene.fog = new FogExp2('#3a5268', 0.0028);
     this.apply(12);
   }
 
@@ -95,11 +97,36 @@ export class Sky {
     this.hemi.intensity = lower.hemiIntensity + (upper.hemiIntensity - lower.hemiIntensity) * t;
     this.renderer.toneMappingExposure = lower.exposure + (upper.exposure - lower.exposure) * t;
     this.phase = t < 0.5 ? lower.phase : upper.phase;
-    this.night = Math.min(1, Math.max(0, 1 - this.sun.intensity / 3.0));
+    this.night = Math.min(1, Math.max(0, 1 - this.sun.intensity / 2.4));
 
     // Sun arc: up at 06:00, overhead at noon, down at 18:00.
     const elevation = ((hour - 6) / 12) * Math.PI;
     const height = Math.sin(elevation);
-    this.sun.position.set(Math.cos(elevation) * 120, Math.max(18, height * 130), 46);
+    this.toSun.set(Math.cos(elevation) * 120, Math.max(18, height * 130), 46).normalize();
+    this.sun.position.copy(this.sun.target.position).addScaledVector(this.toSun, 260);
+  }
+
+  /**
+   * One 4096 map stretched over the whole campus gives a shadow texel of about
+   * 70mm, which is wider than an eyelid. The frustum instead tracks what the
+   * camera is looking at and tightens as it closes in, so a face gets the same
+   * map a district used to share.
+   */
+  focus(target: Vector3, distance: number) {
+    const extent = Math.min(170, Math.max(7, distance * 0.95));
+    this.sun.target.position.set(target.x, target.y, target.z);
+    this.sun.position.copy(target).addScaledVector(this.toSun, 260);
+    if (Math.abs(extent - this.extent) < this.extent * 0.08) return;
+    this.extent = extent;
+    const shadow = this.sun.shadow.camera;
+    shadow.left = -extent;
+    shadow.right = extent;
+    shadow.top = extent;
+    shadow.bottom = -extent;
+    shadow.updateProjectionMatrix();
+    // Bias has to shrink with the frustum or a tight map detaches the contact
+    // shadow from the foot that casts it.
+    this.sun.shadow.normalBias = 0.004 + extent / 7000;
+    this.sun.shadow.bias = -0.00008 - extent / 900000;
   }
 }

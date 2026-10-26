@@ -4,6 +4,57 @@
  * assemble. Adding a look means adding an entry here, not editing the rig.
  */
 
+/**
+ * Sex. Residents are built from one rig, so everything that differs between
+ * the men and the women on the campus is a number in SEXES below.
+ */
+export type Sex = 'f' | 'm';
+
+export interface SexTraits {
+  /** Skull width against height. Below 1 narrows the face. */
+  narrow: number;
+  /** How hard the jaw pulls in below the cheek. Higher is a pointier chin. */
+  jaw: number;
+  /** Brow ridge height. */
+  brow: number;
+  /** Cheek fullness. */
+  cheek: number;
+  /** Eye size. */
+  eye: number;
+  /** Mouth width. */
+  mouth: number;
+  /** Shoulder width. */
+  shoulder: number;
+  /** Waist width. */
+  waist: number;
+  /** Hip width. */
+  hip: number;
+  /** Neck thickness. */
+  neck: number;
+  /** Overall height, on top of the build's own. */
+  stature: number;
+}
+
+export const SEXES: Record<Sex, SexTraits> = {
+  f: {
+    narrow: 0.86, jaw: 0.56, brow: 0.45, cheek: 1.25, eye: 1.1, mouth: 1.12,
+    shoulder: 0.9, waist: 0.9, hip: 1.1, neck: 0.86, stature: 0.95,
+  },
+  m: {
+    narrow: 0.92, jaw: 0.4, brow: 1, cheek: 1, eye: 1, mouth: 1,
+    shoulder: 1.06, waist: 1, hip: 0.97, neck: 1, stature: 1,
+  },
+};
+
+/** Hair silhouettes the head builder knows how to cut. */
+export type HairStyle = 'crop' | 'swept' | 'bob' | 'long' | 'bun';
+
+/** Cycled by resident index, so the campus is not forty of one haircut. */
+export const HAIR_STYLES: Record<Sex, HairStyle[]> = {
+  f: ['long', 'bob', 'bun', 'bob'],
+  m: ['crop', 'swept', 'crop'],
+};
+
 export type Silhouette =
   | 'tailored'
   | 'coat'
@@ -103,5 +154,5 @@ export const ARCHETYPES = {
 export type ArchetypeId = keyof typeof ARCHETYPES;
 
 /** Skin and hair ranges, cycled by resident index so the campus is not uniform. */
-export const SKIN_TONES = ['#e7b28f', '#b67a58', '#f0c6a4', '#8f5e47', '#d59b73', '#a86b4c', '#eec0a0'];
+export const SKIN_TONES = ['#c0906f', '#9f6647', '#c79b7a', '#7b4e3a', '#ad7a55', '#8f583d', '#c3955f'];
 export const HAIR_TONES = ['#241c20', '#584235', '#b6a08b', '#2a333c', '#694a35', '#3b2a24', '#8b8c93'];

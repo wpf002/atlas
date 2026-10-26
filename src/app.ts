@@ -72,7 +72,7 @@ export class Atlas {
     this.orbit = new OrbitControls(this.camera, this.canvas);
     this.orbit.enableDamping = true;
     this.orbit.dampingFactor = 0.07;
-    this.orbit.minDistance = 9;
+    this.orbit.minDistance = 3.4;
     this.orbit.maxDistance = 330;
     this.orbit.maxPolarAngle = Math.PI * 0.485;
     this.orbit.minPolarAngle = 0.18;
@@ -148,7 +148,7 @@ export class Atlas {
     if (window.location.hash !== `#/resident/${resident.id}`) {
       history.replaceState(null, '', `#/resident/${resident.id}`);
     }
-    if (moveCamera) this.frameOn(agent.rig.root.position, 15);
+    if (moveCamera) this.frameOn(agent.rig.root.position, 11);
   }
 
   private toggleFollow() {
@@ -301,6 +301,9 @@ export class Atlas {
     }
 
     this.orbit.update();
+    const viewDistance = this.camera.position.distanceTo(this.orbit.target);
+    this.sky.focus(this.orbit.target, viewDistance);
+    this.pipeline.setFocus(viewDistance);
     this.updateTags();
     this.pipeline.render(raw);
 

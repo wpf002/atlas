@@ -48,11 +48,11 @@ export function buildVenue(shell: VenueShell): Group {
   const g = new Group();
   const { width: W, depth: D, height: H, seed } = shell;
 
-  const stone = material(shade(shell.facade, 0.12), 0, 0.82);
-  const rustic = material(shade(shell.facade, -0.26), 0, 0.88);
-  const reveal = material(shade(shell.facade, -0.42), 0, 0.9);
-  const trim = material(shade(shell.facade, 0.34), 0, 0.78);
-  const accent = material(shell.accent, 0, 0.6);
+  const stone = material(shade(shell.facade, 0.12), 0, 0.82, undefined, 'stone');
+  const rustic = material(shade(shell.facade, -0.26), 0, 0.88, undefined, 'concrete');
+  const reveal = material(shade(shell.facade, -0.42), 0, 0.9, undefined, 'concrete');
+  const trim = material(shade(shell.facade, 0.34), 0, 0.78, undefined, 'stone');
+  const accent = material(shell.accent, 0, 0.6, undefined, 'stone');
   const lit = material('#6d5f44', 0, 0.3, { emissive: new Color('#f2d6a0'), emissiveIntensity: 0.9 });
 
   // Tall venues step back so the silhouette is not one rectangle.
