@@ -1,4 +1,4 @@
-import { Euler, Group, Quaternion, Vector3, type Object3D, type Scene } from 'three';
+import { Box3, Euler, Group, Object3D, Quaternion, Vector3, type Scene } from 'three';
 import { DISTRICTS, type District, type VenueKind } from '../data/districts';
 import { bakeStatic } from './bake';
 import { label } from './labels';
@@ -15,6 +15,10 @@ export interface Placement {
   facing: number;
   /** Plaza-side apron where residents work and meet. */
   frontage: Vector3;
+  /** Spots in front of the district's props where residents stand to work. */
+  stations: Vector3[];
+  /** Y rotation a resident at a station needs to face the props. */
+  stationFacing: number;
 }
 
 /**
@@ -255,7 +259,15 @@ function venueProps(kind: VenueKind, accent: string): Group {
   return g;
 }
 
-function buildDistrict(scene: Object3D, placement: Placement) {
+/** Prop bounds in the district's local frame: centre and half-extents on XZ. */
+interface PropBounds {
+  x: number;
+  z: number;
+  hw: number;
+  hd: number;
+}
+
+function buildDistrict(scene: Object3D, placement: Placement): PropBounds {
   const { district, center, facing } = placement;
   const profile = venueProfile(district.kind);
   const accent = material(district.accent);
@@ -293,7 +305,16 @@ function buildDistrict(scene: Object3D, placement: Placement) {
   group.add(apron);
   const props = venueProps(district.kind, district.accent);
   props.position.set(0, 0, -profile.depth / 2 - 6);
-  group.add(props);
+  // The props are furniture, so they block like the shell does. One box round
+  // the whole cluster keeps residents out of the gaps between shelves too.
+  props.updateMatrixWorld(true);
+  const extent = new Box3().setFromObject(props);
+  const mid = extent.getCenter(new Vector3());
+  const size = extent.getSize(new Vector3());
+  const blocker = new Object3D();
+  blocker.position.set(mid.x, 0, mid.z);
+  blocker.userData.footprint = { hw: size.x / 2, hd: size.z / 2 };
+  group.add(props, blocker);
 
   lampPost(group, -(profile.width / 2 + 3), -profile.depth / 2 - 2);
   lampPost(group, profile.width / 2 + 3, -profile.depth / 2 - 2);
@@ -301,6 +322,28 @@ function buildDistrict(scene: Object3D, placement: Placement) {
   group.add(box(1.3, 1.1, 1.3, accent, profile.width / 2 + 1, 0.8, -profile.depth / 2 - 1.5));
   tree(group, -(profile.width / 2 + 6), -profile.depth / 2 - 1, 0.9);
   tree(group, profile.width / 2 + 6, -profile.depth / 2 - 1, 0.9);
+  return { x: mid.x, z: mid.z, hw: size.x / 2, hd: size.z / 2 };
+}
+
+/** How many residents a district's props can take at once. */
+const STATIONS = 5;
+
+/**
+ * Work spots on the plaza side of the props, spread along their width. The
+ * group's -Z faces the plaza, so the spots sit at the props' -Z edge and the
+ * resident faces +Z to look at the work.
+ */
+function stationsFor(placement: Placement, bounds: PropBounds) {
+  const { center, facing } = placement;
+  const c = Math.cos(facing);
+  const s = Math.sin(facing);
+  const lz = bounds.z - bounds.hd - 1.5;
+  const span = Math.max(0, bounds.hw - 0.8);
+  for (let k = 0; k < STATIONS; k++) {
+    const lx = bounds.x + ((k / (STATIONS - 1)) * 2 - 1) * span;
+    placement.stations.push(new Vector3(center.x + lx * c + lz * s, 0, center.z - lx * s + lz * c));
+  }
+  placement.stationFacing = Math.atan2(-s, -c);
 }
 
 function buildPlaza(scene: Object3D) {
@@ -358,9 +401,11 @@ export function buildCampus(scene: Scene): Campus {
       center.z - Math.cos(facing) * frontageDistance,
     );
 
-    const placement: Placement = { district, index: districtIndex, center, facing, frontage };
+    const placement: Placement = {
+      district, index: districtIndex, center, facing, frontage, stations: [], stationFacing: 0,
+    };
     placements[districtIndex] = placement;
-    buildDistrict(root, placement);
+    stationsFor(placement, buildDistrict(root, placement));
   });
 
   // Collect prop footprints before baking flattens the group hierarchy.

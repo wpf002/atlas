@@ -23,6 +23,8 @@ export interface Agent {
   dwell: number;
   partner: Agent | null;
   meetingHold: number;
+  /** Heading to turn to on arrival, or null to keep the walking heading. */
+  face: number | null;
 }
 
 const ARRIVE = 0.6;
@@ -126,6 +128,7 @@ export class World {
         dwell: 1 + Math.random() * 4,
         partner: null,
         meetingHold: 0,
+        face: null,
       };
       this.agents.push(agent);
       this.byId.set(resident.id, agent);
@@ -136,6 +139,7 @@ export class World {
   private retarget(agent: Agent) {
     const { activity } = agent;
     const dest = agent.dest;
+    agent.face = null;
 
     switch (activity) {
       case 'rest': {
@@ -146,10 +150,16 @@ export class World {
         agent.dwell = 20 + Math.random() * 30;
         break;
       }
-      case 'work':
-        pointNear(agent.placement.frontage, 11, dest);
-        agent.dwell = 4 + Math.random() * 7;
+      case 'work': {
+        // Each resident keeps their own station, so colleagues stand side by
+        // side at the props instead of stacking on one random point.
+        const { stations, stationFacing, district } = agent.placement;
+        const slot = Math.max(0, district.residents.findIndex((r) => r.id === agent.resident.id));
+        dest.copy(stations[slot % stations.length]);
+        agent.face = stationFacing;
+        agent.dwell = 12 + Math.random() * 14;
         break;
+      }
       case 'commons':
         plazaPoint(dest);
         agent.dwell = 5 + Math.random() * 8;
@@ -368,6 +378,7 @@ export class World {
         continue;
       }
 
+      if (agent.face !== null) rig.root.rotation.y = turn(rig.root.rotation.y, agent.face, dt * 5);
       rig.play('idle');
       rig.update(dt);
 
