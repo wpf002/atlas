@@ -502,3 +502,54 @@ button { cursor: pointer; }
   .scene-head { max-width: 62%; }
   .scene-head h2 { font-size: 20px; }
 }
+
+/*
+ * Resident name tags. Drawn over the canvas so the type stays crisp at any
+ * camera distance, with a leader line down to the figure's head.
+ */
+.tags {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.tag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: -34px 0 0 0;
+  padding: 3px 9px 4px;
+  translate: -50% 0;
+  white-space: nowrap;
+  font: 500 11.5px/1.25 var(--ui);
+  letter-spacing: 0.04em;
+  color: var(--vellum);
+  background: color-mix(in srgb, var(--ink-900) 82%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: 0 2px 10px rgb(4 8 12 / 0.45);
+  backdrop-filter: blur(3px);
+}
+
+.tag::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 1px;
+  height: 14px;
+  background: linear-gradient(var(--line) 40%, transparent);
+}
+
+.tag.is-active {
+  color: var(--ink-950);
+  background: var(--brass-bright);
+  border-color: var(--brass);
+  box-shadow: 0 2px 14px rgb(227 189 127 / 0.3);
+}
+
+.tag.is-active::after {
+  background: linear-gradient(var(--brass) 45%, transparent);
+}

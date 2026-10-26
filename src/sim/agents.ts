@@ -28,6 +28,16 @@ export interface Agent {
 const ARRIVE = 0.6;
 /** Fallback half-width, used only where a rig is not to hand. */
 const BODY = 0.6;
+/** Ground speed the walk clip was authored at, in units per second. */
+const STRIDE_SPEED = 2.3;
+
+/** Eases an angle toward a target along the shorter arc. */
+function turn(from: number, to: number, rate: number): number {
+  let delta = (to - from) % (Math.PI * 2);
+  if (delta > Math.PI) delta -= Math.PI * 2;
+  if (delta < -Math.PI) delta += Math.PI * 2;
+  return from + delta * Math.min(1, rate);
+}
 /** How far ahead an agent looks for something to walk around. */
 const LOOKAHEAD = 4.2;
 const PLAZA_INNER = 9;
@@ -283,15 +293,14 @@ export class World {
     }
   }
 
-  update(dt: number, elapsed: number) {
+  update(dt: number) {
     this.meetingTimer -= dt;
     if (this.meetingTimer <= 0) {
       this.meetingTimer = 9 + Math.random() * 9;
       this.tryMeeting();
     }
 
-    for (let i = 0; i < this.agents.length; i++) {
-      const agent = this.agents[i];
+    for (const agent of this.agents) {
       const rig = agent.rig;
 
       if (agent.state === 'indoors') {
@@ -317,39 +326,35 @@ export class World {
         position.z += heading.z * step;
         // Again after the step, so a stride never ends inside a prop.
         this.pushOut(position, rig.radius);
-        rig.root.rotation.y = Math.atan2(-heading.x, -heading.z);
+        // Turn into the heading rather than snapping, or a change of course
+        // spins the whole body on the spot.
+        rig.root.rotation.y = turn(rig.root.rotation.y, Math.atan2(-heading.x, -heading.z), dt * 7);
 
-        agent.phase += dt * 9.5;
-        const swing = Math.sin(agent.phase);
-        rig.legL.rotation.x = swing * 0.46;
-        rig.legR.rotation.x = -swing * 0.46;
-        rig.armL.rotation.x = -swing * 0.3;
-        rig.armR.rotation.x = swing * 0.3;
-        rig.torso.position.y = Math.abs(swing) * 0.05;
+        rig.play('walk');
+        // The stride matches ground speed, so nobody moonwalks or mincing-steps.
+        rig.setStride(Math.max(0.55, (agent.speed * 2.1) / STRIDE_SPEED));
+        rig.update(dt);
         continue;
       }
 
       // Arrived.
-      rig.legL.rotation.x *= 0.82;
-      rig.legR.rotation.x *= 0.82;
-      rig.torso.position.y *= 0.82;
-
       if (agent.partner) {
-        // Face each other and talk with their hands.
         const other = agent.partner.rig.root.position;
-        rig.root.rotation.y = Math.atan2(-(other.x - position.x), -(other.z - position.z));
-        const gesture = Math.sin(elapsed * 2.6 + i) * 0.26;
-        rig.armL.rotation.x = -0.5 + gesture;
-        rig.armR.rotation.x = -0.4 - gesture;
+        rig.root.rotation.y = turn(
+          rig.root.rotation.y,
+          Math.atan2(-(other.x - position.x), -(other.z - position.z)),
+          dt * 5,
+        );
+        rig.play('talk');
+        rig.update(dt);
         agent.state = 'meeting';
         agent.meetingHold -= dt;
         if (agent.meetingHold <= 0) this.endMeeting(agent);
         continue;
       }
 
-      const idle = Math.sin(elapsed * 1.1 + i) * 0.13;
-      rig.armL.rotation.x = idle;
-      rig.armR.rotation.x = -idle;
+      rig.play('idle');
+      rig.update(dt);
 
       if (agent.activity === 'rest') {
         rig.root.visible = false;

@@ -3,4 +3,6 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   server: { port: 5178, open: false },
   build: { target: 'es2022', sourcemap: true },
+  // three/examples/jsm resolves 'three' on its own, which loads a second copy.
+  resolve: { dedupe: ['three'] },
 });

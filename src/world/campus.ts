@@ -2,6 +2,7 @@ import { Group, Vector3, type Object3D, type Scene } from 'three';
 import { DISTRICTS, type District, type VenueKind } from '../data/districts';
 import { bakeStatic } from './bake';
 import { label } from './labels';
+import { buildVenue } from './facade';
 import { lamp, material, SURFACES } from './materials';
 import { ball, box, cyl } from './primitives';
 
@@ -44,35 +45,35 @@ interface VenueProfile {
 function venueProfile(kind: VenueKind): VenueProfile {
   switch (kind) {
     case 'tower':
-      return { height: 26, width: 18, depth: 16, facade: '#33465a' };
+      return { height: 30, width: 18, depth: 16, facade: '#3b4d63' };
     case 'archive':
-      return { height: 13, width: 24, depth: 18, facade: '#41474f' };
+      return { height: 15, width: 24, depth: 18, facade: '#6b5b45' };
     case 'lab':
-      return { height: 11, width: 23, depth: 18, facade: '#2d4350' };
+      return { height: 12, width: 23, depth: 18, facade: '#2f4a56' };
     case 'market':
-      return { height: 15, width: 21, depth: 17, facade: '#3f4a48' };
+      return { height: 17, width: 21, depth: 17, facade: '#5d5342' };
     case 'chamber':
-      return { height: 14, width: 22, depth: 18, facade: '#4a4851' };
+      return { height: 16, width: 22, depth: 18, facade: '#4e4a52' };
     case 'clinic':
-      return { height: 10, width: 23, depth: 18, facade: '#47544f' };
+      return { height: 11, width: 23, depth: 18, facade: '#4a5c56' };
     case 'forum':
-      return { height: 9, width: 25, depth: 19, facade: '#474457' };
+      return { height: 9, width: 25, depth: 19, facade: '#54495c' };
     case 'studio':
-      return { height: 12, width: 25, depth: 19, facade: '#4b4039' };
+      return { height: 14, width: 25, depth: 19, facade: '#7a5340' };
     case 'workshop':
-      return { height: 9, width: 26, depth: 19, facade: '#3d4852' };
+      return { height: 10, width: 26, depth: 19, facade: '#44525e' };
     case 'arena':
-      return { height: 11, width: 26, depth: 20, facade: '#3e4a3c' };
+      return { height: 11, width: 26, depth: 20, facade: '#405441' };
     case 'bureau':
-      return { height: 12, width: 21, depth: 17, facade: '#2b3440' };
+      return { height: 14, width: 21, depth: 17, facade: '#333e4c' };
     case 'gallery':
-      return { height: 10, width: 23, depth: 18, facade: '#4c4446' };
+      return { height: 12, width: 23, depth: 18, facade: '#6a5057' };
     case 'colonnade':
-      return { height: 8, width: 22, depth: 16, facade: '#5b5648', open: true };
+      return { height: 8, width: 22, depth: 16, facade: '#7d7558', open: true };
     case 'hall':
-      return { height: 13, width: 23, depth: 18, facade: '#4a4336' };
+      return { height: 15, width: 23, depth: 18, facade: '#6e5a3c' };
     case 'dome':
-      return { height: 8, width: 22, depth: 18, facade: '#364a42', open: true };
+      return { height: 8, width: 22, depth: 18, facade: '#3d5b4b', open: true };
   }
 }
 
@@ -258,28 +259,20 @@ function buildDistrict(scene: Object3D, placement: Placement) {
   group.add(box(profile.width + 8, 0.5, profile.depth + 8, SURFACES.stone, 0, 0.05, 0));
 
   if (!profile.open) {
-    group.add(box(profile.width, profile.height, profile.depth, material(profile.facade), 0, profile.height / 2, 0));
-    group.add(box(profile.width + 1.4, 0.6, profile.depth + 1.4, accent, 0, profile.height + 0.3, 0));
-
-    // Entrance and glazing on the plaza-facing side (-Z after rotation).
-    const front = -profile.depth / 2 - 0.1;
-    group.add(box(profile.width - 3, 0.4, 1.4, SURFACES.wood, 0, 3.4, front + 0.5));
-    group.add(box(4.6, 5, 0.25, SURFACES.glass, 0, 2.5, front));
-    for (let c = -2; c <= 2; c++) {
-      if (c === 0) continue;
-      group.add(box(2.6, 2.6, 0.16, SURFACES.glass, c * 4.2, 5.4, front));
-      group.add(box(2.6, 2.6, 0.16, SURFACES.glass, c * 4.2, 5.4, -front));
-    }
-    const upperRows = Math.max(1, Math.floor((profile.height - 8) / 4));
-    for (let row = 0; row < upperRows; row++) {
-      for (let c = -1; c <= 1; c++) {
-        group.add(box(3, 2.4, 0.15, SURFACES.glass, c * 5.3, 9 + row * 4, front));
-      }
-    }
+    const venue = buildVenue({
+      width: profile.width,
+      depth: profile.depth,
+      height: profile.height,
+      facade: profile.facade,
+      accent: district.accent,
+      seed: placement.index,
+    });
+    venue.position.y = 0.3;
+    group.add(venue);
   }
 
   const sign = label(district.venue, { background: '#101b26e0', scale: 0.85, font: 'display' });
-  sign.position.set(0, profile.height + 3.2, -profile.depth / 2);
+  sign.position.set(0, profile.height + 2.6, -profile.depth / 2 - 1.6);
   group.add(sign);
 
   // Apron, props, lamps.

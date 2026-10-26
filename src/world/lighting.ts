@@ -40,6 +40,8 @@ export class Sky {
   private readonly a = new Color();
   private readonly b = new Color();
   phase = STOPS[3].phase;
+  /** 0 at full noon, 1 in the dead of night. Drives bloom on the lamps. */
+  night = 0;
 
   constructor(scene: Scene, renderer: WebGLRenderer) {
     this.scene = scene;
@@ -93,6 +95,7 @@ export class Sky {
     this.hemi.intensity = lower.hemiIntensity + (upper.hemiIntensity - lower.hemiIntensity) * t;
     this.renderer.toneMappingExposure = lower.exposure + (upper.exposure - lower.exposure) * t;
     this.phase = t < 0.5 ? lower.phase : upper.phase;
+    this.night = Math.min(1, Math.max(0, 1 - this.sun.intensity / 3.0));
 
     // Sun arc: up at 06:00, overhead at noon, down at 18:00.
     const elevation = ((hour - 6) / 12) * Math.PI;

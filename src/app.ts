@@ -15,15 +15,15 @@ import { World, statusOf, type Agent } from './sim/agents';
 import { Clock } from './sim/clock';
 import { buildCampus, type Campus } from './world/campus';
 import { Sky } from './world/lighting';
+import { RenderPipeline } from './world/render';
 import { Controls } from './ui/controls';
 import { el } from './ui/dom';
 import { Inspector } from './ui/inspector';
 import { Sidebar, type DistrictFilter } from './ui/sidebar';
+import { NameTags } from './ui/tags';
 
 const HOME_VIEW = { position: new Vector3(0, 158, 228), target: new Vector3(0, 0, 0) };
 const TOUR_INTERVAL = 11;
-/** Name tags only show once the camera is close enough to read them. */
-const TAG_RANGE = 62;
 
 export class Atlas {
   private readonly canvas = el<HTMLCanvasElement>('scene');
@@ -32,6 +32,7 @@ export class Atlas {
   private readonly camera: PerspectiveCamera;
   private readonly orbit: OrbitControls;
   private readonly sky: Sky;
+  private readonly pipeline: RenderPipeline;
   private readonly campus: Campus;
   private readonly clock = new Clock(10, 2.2);
   private readonly feed = new ActivityFeed();
@@ -39,6 +40,7 @@ export class Atlas {
   private readonly sidebar: Sidebar;
   private readonly inspector: Inspector;
   private readonly controls: Controls;
+  private readonly tags = new NameTags();
 
   private readonly raycaster = new Raycaster();
   private readonly pointer = new Vector2();
@@ -51,11 +53,9 @@ export class Atlas {
   private tourTimer = 0;
   private touring = false;
   private speed = 1;
-  private labels = true;
   private statusTimer = 0;
 
   private last = performance.now();
-  private elapsed = 0;
   private fpsWindow = 0;
   private frames = 0;
 
@@ -79,6 +79,7 @@ export class Atlas {
     this.orbit.target.copy(HOME_VIEW.target);
 
     this.sky = new Sky(this.scene, this.renderer);
+    this.pipeline = new RenderPipeline(this.renderer, this.scene, this.camera);
     this.campus = buildCampus(this.scene);
     this.world = new World(this.scene, this.campus, this.clock, this.feed);
 
@@ -104,8 +105,7 @@ export class Atlas {
         if (touring) this.following = null;
       },
       onLabelsToggle: (visible) => {
-        this.labels = visible;
-        if (!visible) for (const agent of this.world.agents) agent.rig.tag.visible = false;
+        this.tags.setEnabled(visible);
       },
       onSpeedChange: (multiplier) => {
         this.speed = multiplier;
@@ -244,28 +244,14 @@ export class Atlas {
     const height = Math.round(rect.height * dpr);
     if (this.canvas.width === width && this.canvas.height === height) return;
     this.renderer.setSize(rect.width, rect.height, false);
+    this.pipeline.setSize(rect.width, rect.height);
     this.camera.aspect = rect.width / rect.height;
     this.camera.updateProjectionMatrix();
   }
 
-  /**
-   * Forty tags at once is unreadable from the overview, so a tag shows only
-   * when the camera is near it, plus always for the resident on screen.
-   */
   private updateTags() {
-    const camera = this.camera.position;
-    const range = TAG_RANGE * TAG_RANGE;
-    for (const agent of this.world.agents) {
-      if (!this.labels || !agent.rig.root.visible) {
-        agent.rig.tag.visible = false;
-        continue;
-      }
-      const p = agent.rig.root.position;
-      const dx = p.x - camera.x;
-      const dy = p.y - camera.y;
-      const dz = p.z - camera.z;
-      agent.rig.tag.visible = agent === this.selected || dx * dx + dy * dy + dz * dz < range;
-    }
+    const rect = this.canvas.getBoundingClientRect();
+    this.tags.update(this.world.agents, this.camera, rect.width, rect.height, this.selected);
   }
 
   private frame(now: number) {
@@ -276,17 +262,16 @@ export class Atlas {
 
     if (this.running) {
       const dt = raw * this.speed;
-      this.elapsed += dt;
       const { hourChanged } = this.clock.advance(dt);
       this.sky.apply(this.clock.hourFraction);
-      this.world.update(dt, this.elapsed);
+      this.pipeline.setNight(this.sky.night);
+      this.world.update(dt);
       if (hourChanged) {
         this.world.syncToSchedule();
         this.controls.setAwake(this.world.awakeCount);
         if (this.selected) this.inspector.setNow(statusOf(this.selected));
       }
       this.controls.setClock(this.clock.label, this.sky.phase);
-      this.updateTags();
 
       this.statusTimer -= dt;
       if (this.statusTimer <= 0) {
@@ -316,7 +301,8 @@ export class Atlas {
     }
 
     this.orbit.update();
-    this.renderer.render(this.scene, this.camera);
+    this.updateTags();
+    this.pipeline.render(raw);
 
     this.frames++;
     this.fpsWindow += raw;
