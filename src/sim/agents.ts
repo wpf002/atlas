@@ -1,7 +1,7 @@
 import { Vector3, type Scene } from 'three';
 import { RESIDENTS, type ResidentRecord } from '../data/districts';
 import { blockAt, type Activity } from '../data/rhythms';
-import type { Campus, Placement } from '../world/campus';
+import type { Campus, Obstacle, Placement } from '../world/campus';
 import { buildCharacter, type CharacterRig } from '../world/character';
 import { ActivityFeed, MEETING_SUBJECTS } from './activity';
 import type { Clock } from './clock';
@@ -39,7 +39,7 @@ function turn(from: number, to: number, rate: number): number {
   return from + delta * Math.min(1, rate);
 }
 /** How far ahead an agent looks for something to walk around. */
-const LOOKAHEAD = 4.2;
+const LOOKAHEAD = 7;
 const PLAZA_INNER = 9;
 const PLAZA_OUTER = 21;
 
@@ -55,6 +55,37 @@ function plazaPoint(out: Vector3): Vector3 {
   const angle = Math.random() * Math.PI * 2;
   const radius = PLAZA_INNER + Math.random() * (PLAZA_OUTER - PLAZA_INNER);
   return out.set(Math.sin(angle) * radius, 0, Math.cos(angle) * radius);
+}
+
+/**
+ * Where a point has to move to sit just outside an obstacle, once that
+ * obstacle is grown by the body radius. Null when the point is already clear.
+ * Boxes are solved in their own frame, so a rotated shell blocks its real
+ * rectangle; the point leaves through the nearest face, never across the
+ * building.
+ */
+function escape(o: Obstacle, px: number, pz: number, body: number): { x: number; z: number } | null {
+  const dx = px - o.x;
+  const dz = pz - o.z;
+  if (o.round) {
+    const min = o.hw + body;
+    const d = Math.hypot(dx, dz);
+    if (d >= min) return null;
+    if (d < 1e-4) return { x: o.x + min, z: o.z };
+    return { x: o.x + (dx / d) * min, z: o.z + (dz / d) * min };
+  }
+  const c = Math.cos(o.ry);
+  const s = Math.sin(o.ry);
+  const lx = dx * c - dz * s;
+  const lz = dx * s + dz * c;
+  const hw = o.hw + body;
+  const hd = o.hd + body;
+  if (Math.abs(lx) >= hw || Math.abs(lz) >= hd) return null;
+  let ox = lx;
+  let oz = lz;
+  if (hw - Math.abs(lx) < hd - Math.abs(lz)) ox = lx < 0 ? -hw : hw;
+  else oz = lz < 0 ? -hd : hd;
+  return { x: o.x + ox * c + oz * s, z: o.z - ox * s + oz * c };
 }
 
 export class World {
@@ -218,78 +249,62 @@ export class World {
     }
   }
 
-  /** Nudges a point out of any prop it landed inside. */
+  /** Nudges a point out of any prop or building it landed inside. */
   private clearOf(point: Vector3, body = BODY): Vector3 {
     for (const o of this.campus.obstacles) {
-      const dx = point.x - o.x;
-      const dz = point.z - o.z;
-      const min = o.radius + body;
-      const d = Math.hypot(dx, dz);
-      if (d >= min) continue;
-      if (d < 1e-4) {
-        point.x = o.x + min;
-        continue;
-      }
-      point.x = o.x + (dx / d) * min;
-      point.z = o.z + (dz / d) * min;
+      const out = escape(o, point.x, point.z, body);
+      if (!out) continue;
+      point.x = out.x;
+      point.z = out.z;
     }
     return point;
   }
 
   /**
-   * Deflects a heading around the nearest prop in front of the agent, then
-   * pushes the body out of anything it is already overlapping. Steering alone
-   * leaves gaps at corners; the push-out is what guarantees no clipping.
+   * Probes the path ahead and slides the heading along the first footprint it
+   * would enter. Probing beats a centre-and-radius test because a building is
+   * long: an agent walking at its flank is nowhere near the centre but is very
+   * much on course for the wall.
    */
   private steer(position: Vector3, dirX: number, dirZ: number, body: number): { x: number; z: number } {
-    let bestDot = 0;
-    let bestX = 0;
-    let bestZ = 0;
-    let bestGap = Infinity;
-
-    for (const o of this.campus.obstacles) {
-      const dx = o.x - position.x;
-      const dz = o.z - position.z;
-      const ahead = dx * dirX + dz * dirZ;
-      if (ahead <= 0 || ahead > LOOKAHEAD) continue;
-      const reach = o.radius + body;
-      // Perpendicular distance from the obstacle centre to the path.
-      const side = dx * -dirZ + dz * dirX;
-      if (Math.abs(side) > reach) continue;
-      const gap = ahead - reach;
-      if (gap >= bestGap) continue;
-      bestGap = gap;
-      bestDot = side;
-      bestX = dx;
-      bestZ = dz;
+    const margin = body + 0.4;
+    for (let i = 1; i <= 5; i++) {
+      const reach = (LOOKAHEAD * i) / 5;
+      const px = position.x + dirX * reach;
+      const pz = position.z + dirZ * reach;
+      for (const o of this.campus.obstacles) {
+        const out = escape(o, px, pz, margin);
+        if (!out) continue;
+        // The way out of the footprint is the surface normal; walking the
+        // perpendicular to it skirts the wall instead of bouncing off it.
+        let nx = out.x - px;
+        let nz = out.z - pz;
+        const length = Math.hypot(nx, nz) || 1;
+        nx /= length;
+        nz /= length;
+        let tx = -nz;
+        let tz = nx;
+        if (tx * dirX + tz * dirZ < 0) {
+          tx = nz;
+          tz = -nx;
+        }
+        // The nearer the wall, the more the tangent wins over the heading.
+        const near = 1 - reach / LOOKAHEAD;
+        const bx = dirX * (1 - 0.7 * near) + tx * (0.45 + 1.3 * near) + nx * 0.25 * near;
+        const bz = dirZ * (1 - 0.7 * near) + tz * (0.45 + 1.3 * near) + nz * 0.25 * near;
+        const blended = Math.hypot(bx, bz) || 1;
+        return { x: bx / blended, z: bz / blended };
+      }
     }
-
-    if (bestGap === Infinity) return { x: dirX, z: dirZ };
-
-    // Turn away from whichever side the obstacle sits on.
-    const away = bestDot >= 0 ? -1 : 1;
-    const strength = Math.min(1, LOOKAHEAD / Math.max(0.4, Math.hypot(bestX, bestZ)));
-    const x = dirX + -dirZ * away * strength;
-    const z = dirZ + dirX * away * strength;
-    const length = Math.hypot(x, z) || 1;
-    return { x: x / length, z: z / length };
+    return { x: dirX, z: dirZ };
   }
 
   private pushOut(position: Vector3, body: number) {
     for (const o of this.campus.obstacles) {
-      const dx = position.x - o.x;
-      const dz = position.z - o.z;
-      const min = o.radius + body;
-      if (Math.abs(dx) > min || Math.abs(dz) > min) continue;
-      const d = Math.hypot(dx, dz);
-      if (d >= min) continue;
-      if (d < 1e-4) {
-        position.x = o.x + min;
-        continue;
-      }
-      const push = (min - d) / d;
-      position.x += dx * push;
-      position.z += dz * push;
+      const out = escape(o, position.x, position.z, body);
+      if (!out) continue;
+      position.x = out.x;
+      position.z = out.z;
     }
   }
 

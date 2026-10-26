@@ -1,4 +1,4 @@
-import { Group, Vector3, type Object3D, type Scene } from 'three';
+import { Euler, Group, Quaternion, Vector3, type Object3D, type Scene } from 'three';
 import { DISTRICTS, type District, type VenueKind } from '../data/districts';
 import { bakeStatic } from './bake';
 import { label } from './labels';
@@ -17,11 +17,21 @@ export interface Placement {
   frontage: Vector3;
 }
 
-/** A footprint residents walk around rather than through. */
+/**
+ * A footprint residents walk around rather than through. Round footprints are
+ * trees, lamps and the fountain. Boxes are the venue shells: a circle drawn
+ * round a 26 x 20 building either blocks its own frontage or leaves the
+ * corners walkable, so the shells carry their real rectangle and rotation.
+ */
 export interface Obstacle {
   x: number;
   z: number;
-  radius: number;
+  /** Half-extents. For a round footprint both equal the radius. */
+  hw: number;
+  hd: number;
+  /** Y rotation of the footprint, in radians. Always 0 when round. */
+  ry: number;
+  round: boolean;
 }
 
 export interface Campus {
@@ -258,6 +268,9 @@ function buildDistrict(scene: Object3D, placement: Placement) {
   // Plinth.
   group.add(box(profile.width + 8, 0.5, profile.depth + 8, SURFACES.stone, 0, 0.05, 0));
 
+  // The shell is solid. Without this residents walk straight through it.
+  if (!profile.open) group.userData.footprint = { hw: profile.width / 2, hd: profile.depth / 2 };
+
   if (!profile.open) {
     const venue = buildVenue({
       width: profile.width,
@@ -354,11 +367,20 @@ export function buildCampus(scene: Scene): Campus {
   root.updateMatrixWorld(true);
   const obstacles: Obstacle[] = [];
   const at = new Vector3();
+  const spin = new Quaternion();
+  const euler = new Euler();
   root.traverse((object) => {
     const radius = object.userData.obstacle as number | undefined;
-    if (!radius) return;
+    const footprint = object.userData.footprint as { hw: number; hd: number } | undefined;
+    if (!radius && !footprint) return;
     object.getWorldPosition(at);
-    obstacles.push({ x: at.x, z: at.z, radius });
+    if (footprint) {
+      object.getWorldQuaternion(spin);
+      euler.setFromQuaternion(spin, 'YXZ');
+      obstacles.push({ x: at.x, z: at.z, hw: footprint.hw, hd: footprint.hd, ry: euler.y, round: false });
+      return;
+    }
+    obstacles.push({ x: at.x, z: at.z, hw: radius!, hd: radius!, ry: 0, round: true });
   });
 
   scene.add(bakeStatic(root));

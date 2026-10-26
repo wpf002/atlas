@@ -204,13 +204,7 @@ function sweep(f: Face, profile: [number, number][], gapHalf: number): BufferGeo
  */
 export function hairGeometry(f: Face, style: HairStyle): BufferGeometry[] {
   const { swell, tilt } = CAPS[style];
-  const cap = new SphereGeometry(1, 36, 26, 0, Math.PI * 2, 0, Math.PI * 0.5);
-  cap.rotateX(tilt);
-  shapeSkull(cap, f, swell);
-  tileUv(cap);
-  cap.translate(...f.at);
-
-  const pieces: BufferGeometry[] = [cap];
+  const pieces: BufferGeometry[] = [skullCap(f, swell, tilt)];
   const fall = FALLS[style];
   if (fall) pieces.push(sweep(f, fall, 0.9));
   if (style === 'bun') {
@@ -221,6 +215,20 @@ export function hairGeometry(f: Face, style: HairStyle): BufferGeometry[] {
     pieces.push(knot);
   }
   return pieces;
+}
+
+/**
+ * The skull surface swelled and cut at an angle. Hair uses it, and so does a
+ * fitted hat: a free sphere over a head this shape flares at the sides and
+ * reads as a mushroom, however carefully it is placed.
+ */
+export function skullCap(f: Face, swell: number, tilt: number): BufferGeometry {
+  const cap = new SphereGeometry(1, 36, 26, 0, Math.PI * 2, 0, Math.PI * 0.5);
+  cap.rotateX(tilt);
+  shapeSkull(cap, f, swell);
+  tileUv(cap);
+  cap.translate(...f.at);
+  return cap;
 }
 
 export function earGeometry(r: number, at: [number, number, number], side: 1 | -1): BufferGeometry {

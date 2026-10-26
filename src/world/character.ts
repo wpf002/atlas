@@ -6,7 +6,6 @@ import {
   Group,
   SkinnedMesh,
   TorusGeometry,
-  SphereGeometry,
   Uint16BufferAttribute,
   type AnimationAction,
   type BufferGeometry,
@@ -34,6 +33,7 @@ import {
   decalGeometry,
   earGeometry,
   faceOf,
+  skullCap,
   hairGeometry,
   headGeometry,
 } from './head';
@@ -342,13 +342,18 @@ function addFeature(
       break;
     }
     case 'cap': {
-      const crown = new SphereGeometry(0.295, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.52);
-      crown.scale(1, 0.8, 1.02);
-      crown.translate(0, 2.988, 0.01);
-      tileUv(crown);
-      add(parts, crown, primary);
-      add(parts, bx(0.4, 0.04, 0.3, [0, 2.999, -0.285], 0.13), primary);
-      add(parts, sphereGeometry(0.03, [0, 3.214, 0.01]), accent);
+      // Crown cut from the skull itself, so it grips instead of flaring, and
+      // tilted lower than any hairline so it sits on the forehead.
+      add(parts, skullCap(faceOf(HEAD_R, HEAD_AT, t), 1.17, 0.26), primary);
+      // The bill is a flattened round fan, mostly buried in the crown. A box
+      // across the forehead reads as a headband.
+      const bill = new CylinderGeometry(0.168, 0.168, 0.022, 22, 1);
+      bill.scale(1, 1, 0.76);
+      bill.rotateX(-0.32);
+      bill.translate(0, 2.963, -0.2);
+      tileUv(bill);
+      add(parts, bill, primary);
+      add(parts, sphereGeometry(0.018, [0, 3.206, 0]), accent);
       break;
     }
     case 'chefHat':
