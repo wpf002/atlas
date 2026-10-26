@@ -3,3 +3,9 @@ dist/
 .DS_Store
 *.local
 .vite/
+
+# Local productivity system (productivity plugin) - not part of the app
+TASKS.md
+dashboard.html
+CLAUDE.md
+memory/

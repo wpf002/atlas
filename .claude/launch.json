@@ -4,8 +4,21 @@
     {
       "name": "atlas",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5178
+    },
+    {
+      "name": "tasks",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--port",
+        "5179"
+      ],
+      "port": 5179
     }
   ]
 }
